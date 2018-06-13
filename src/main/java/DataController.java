@@ -16,7 +16,8 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 public class DataController {
-  private static String             configFilePath = getProperty("user.dir") + File.separator + "Bot_data";
+  private static String             configFilePath = getProperty("user.dir")
+                                                    + File.separator + "Bot_data";
   private ArrayList<File>           configFiles;
   private ArrayList<String>         fileNames;
   private DocumentBuilderFactory    factory;
