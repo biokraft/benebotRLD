@@ -1,0 +1,10 @@
+<Triggers>
+  <trigger id = "1">
+    <keyword>prinzipien</keyword>
+    <keyword>bötti</keyword>
+    <keyword>prinzipien cp</keyword>
+
+    <chance>1.0</chance>
+    <dependant>false</dependant>
+  </trigger>
+</Triggers>

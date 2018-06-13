@@ -16,13 +16,23 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 public class DataController {
-  private static String     configFilePath = getProperty("user.dir") + File.separator + "Bot_data";
-  private ArrayList<File>   configFiles;
-  private ArrayList<String> fileNames;
+  private static String             configFilePath = getProperty("user.dir") + File.separator + "Bot_data";
+  private ArrayList<File>           configFiles;
+  private ArrayList<String>         fileNames;
+  private DocumentBuilderFactory    factory;
+  private DocumentBuilder           builder;
 
   public DataController () {
     configFiles = new ArrayList<File>();
     fileNames = new ArrayList<String>();
+
+    factory = DocumentBuilderFactory.newInstance();
+    builder = null;
+    try {
+      builder = factory.newDocumentBuilder();
+    } catch (ParserConfigurationException e) {
+      e.printStackTrace();
+    }
   }
 
   public int addFile (String fileName) {
@@ -97,13 +107,7 @@ public class DataController {
 
   public ArrayList<Command> parseCommands (String fileName) {
     ArrayList<Command> result = new ArrayList<Command>();
-    DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-    DocumentBuilder builder = null; Document doc = null;
-    try {
-      builder = factory.newDocumentBuilder();
-    } catch (ParserConfigurationException e) {
-      e.printStackTrace();
-    }
+    Document doc = null;
     try {
       doc = builder.parse(this.getFile(fileName));
     } catch (SAXException e) {
@@ -138,9 +142,54 @@ public class DataController {
     return result;
   }
 
+  public ArrayList<Trigger> parseTrigger (String fileName) {
+    ArrayList<Trigger> result = new ArrayList<Trigger>();
+    Document doc = null;
+    try {
+      doc = builder.parse(this.getFile(fileName));
+    } catch (SAXException e) {
+      e.printStackTrace();
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    NodeList triggerList = doc.getElementsByTagName("trigger");
+
+    for (int i = 0; i < triggerList.getLength(); i++) {
+      Node t = triggerList.item(i);
+      if (t.getNodeType() == Node.ELEMENT_NODE) {
+        Element trigger = (Element) t;
+        String id = trigger.getAttribute("id");
+        NodeList nodeList = trigger.getChildNodes();
+
+        ArrayList<String> keywords = new ArrayList<String>();
+        float chance = 0;
+        boolean dependant = false;
+
+        for (int j = 0; j < nodeList.getLength(); j++) {
+          Node n = nodeList.item(j);
+          if (n.getNodeType() == Node.ELEMENT_NODE) {
+            Element element = (Element) n;
+            if (element.getTagName().equals("keyword")) {
+              keywords.add(element.getTextContent());
+            } else if (element.getTagName().equals("chance")) {
+              chance = Float.parseFloat(element.getTextContent());
+            } else if (element.getTagName().equals("dependant")) {
+              dependant = Boolean.parseBoolean(element.getTextContent());
+            }
+          }
+        }
+        result.add(new Trigger(keywords, chance, dependant));
+      }
+    }
+    return result;
+  }
+
   public static void main (String args[]) throws IOException, SAXException {
     DataController dataController = new DataController();
-    dataController.addFile("commands.xml");
+    dataController.addFile("trigger.xml");
+    ArrayList<Trigger> triggerList = dataController.parseTrigger("trigger.xml");
+
+    System.out.println(triggerList.get(0).getKeywords().get(0));
 
   }
 
