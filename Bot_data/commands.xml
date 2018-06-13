@@ -1,0 +1,10 @@
+<Commands>
+  <command id = "1">
+    <name>kp</name>
+    <response>kp bin baked</response>
+  </command>
+  <command id = "2">
+    <name>test</name>
+    <response>bin gay</response>
+  </command>
+</Commands>
