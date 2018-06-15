@@ -4,11 +4,13 @@ public class Trigger {
   private ArrayList<String> keywords;
   private float chance;
   private boolean dependant;
+  private String copypasta;
 
-  public Trigger(ArrayList<String> keywords, float chance, boolean dependant) {
+  public Trigger(ArrayList<String> keywords, float chance, boolean dependant, String copypasta) {
     this.keywords = keywords;
     this.chance = chance;
     this.dependant = dependant;
+    this.copypasta = copypasta;
   }
 
   public ArrayList<String> getKeywords() {
@@ -21,5 +23,9 @@ public class Trigger {
 
   public boolean isDependant() {
     return dependant;
+  }
+
+  public String getCopypasta() {
+    return copypasta;
   }
 }

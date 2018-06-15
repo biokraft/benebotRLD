@@ -165,6 +165,7 @@ public class DataController {
         ArrayList<String> keywords = new ArrayList<String>();
         float chance = 0;
         boolean dependant = false;
+        String copypasta = "";
 
         for (int j = 0; j < nodeList.getLength(); j++) {
           Node n = nodeList.item(j);
@@ -176,10 +177,12 @@ public class DataController {
               chance = Float.parseFloat(element.getTextContent());
             } else if (element.getTagName().equals("dependant")) {
               dependant = Boolean.parseBoolean(element.getTextContent());
+            } else if (element.getTagName().equals("copypasta")) {
+              copypasta = element.getTextContent();
             }
           }
         }
-        result.add(new Trigger(keywords, chance, dependant));
+        result.add(new Trigger(keywords, chance, dependant, copypasta));
       }
     }
     return result;
@@ -190,7 +193,7 @@ public class DataController {
     dataController.addFile("trigger.xml");
     ArrayList<Trigger> triggerList = dataController.parseTrigger("trigger.xml");
 
-    System.out.println(triggerList.get(0).getKeywords().get(0));
+    System.out.println(triggerList.get(0).getCopypasta());
 
   }
 
