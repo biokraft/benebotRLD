@@ -1,5 +1,5 @@
-import org.telegram.telegrambots.api.objects.Update;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.objects.Update;
 
 public class BotController extends TelegramLongPollingBot {
 
@@ -8,10 +8,10 @@ public class BotController extends TelegramLongPollingBot {
   }
 
   public String getBotUsername() {
-    return "Benebot 2.0";
+    return "Benebot 3.0";
   }
 
   public String getBotToken() {
-    return "519412710:AAHvfawmwzPCSZtmImFDWS870qsudwrZHBA";
+    return "529232672:AAHxsYaI8WvGwbXs5jz4v1t2F4KIB1aTFoU";
   }
 }

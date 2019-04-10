@@ -1,6 +1,6 @@
 import org.telegram.telegrambots.ApiContextInitializer;
-import org.telegram.telegrambots.TelegramBotsApi;
-import org.telegram.telegrambots.exceptions.TelegramApiException;
+import org.telegram.telegrambots.meta.TelegramBotsApi;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 public class AppController {
   public static void main(String[] args) {
@@ -15,7 +15,7 @@ public class AppController {
   }
 
   private static void printLogo () {
-    System.out.print("__________                    ___.           __    __________.____     ________   \n"
+    System.out.println("__________                    ___.           __    __________.____     ________   \n"
         + "\\______   \\ ____   ____   ____\\_ |__   _____/  |_  \\______   \\    |    \\______ \\  \n"
         + " |    |  _// __ \\ /    \\_/ __ \\| __ \\ /  _ \\   __\\  |       _/    |     |    |  \\ \n"
         + " |    |   \\  ___/|   |  \\  ___/| \\_\\ (  <_> )  |    |    |   \\    |___  |    `   \\\n"
