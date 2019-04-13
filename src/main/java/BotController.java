@@ -5,10 +5,28 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Timer;
+import java.util.concurrent.TimeUnit;
 
 public class BotController extends TelegramLongPollingBot {
     private static boolean developerMode = false;
-    private ArrayList<Trigger> triggersInProcess = new ArrayList<Trigger>();
+    private static ArrayList<Trigger> triggersInProcess = new ArrayList<Trigger>();
+
+    public BotController() {
+        // Start a Timer task executing every day at 4 am to delete all unfinished Triggers
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.HOUR_OF_DAY, 4);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+
+        Timer time = new Timer(); // Instantiate Timer Object
+
+        // Start running the task at 04:00:00, period is set to 24 hours
+        // if you want to run the task immediately, set the 2nd parameter to 0
+        time.schedule(new DeleteTask(), calendar.getTime(), TimeUnit.HOURS.toMillis(24));
+    }
 
     public void onUpdateReceived(Update update) {
         // Check whether we are receiving a group message or a private chat message
@@ -73,6 +91,7 @@ public class BotController extends TelegramLongPollingBot {
                 // Adding our added trigger to our ArrayList for continuing in the next step
                 // Making sure we also get our CID for later on
                 Trigger[] triggers = Database.getTriggers();
+                // TODO Rewrite this piece of crap, new sql query etc
                 int CID = -1;
                 for (Trigger t : triggers) {
                     if (t.getCommand().equals(response)) {
@@ -82,8 +101,12 @@ public class BotController extends TelegramLongPollingBot {
                 if (CID > 0) {
                     triggersInProcess.add(new Trigger(CID, response, "", 0.0f, update.getMessage().getFrom().getId()));
                 }
-            } catch (SQLException e) {
-                // TODO Feedback dass der command schon existiert
+            } catch (java.sql.SQLIntegrityConstraintViolationException e) {
+                sendMessage(update.getMessage().getFrom().getId().toString(),
+                        "<b> Fehler beim hinzufügen des Triggers </b>\n" +
+                                "<i> - der Trigger existiert schon");
+            } catch (SQLException s) {
+
             }
             if (success) {
                 // if we succeeded in adding a new Trigger our command chain can proceed
@@ -113,17 +136,20 @@ public class BotController extends TelegramLongPollingBot {
                     // Update our Trigger in our database with our desired content(var response)
                     Database.updateTriggerContentByCID(
                             response,
-                            desiredTrigger.getCID(),
-                            update.getMessage().getFrom().getId()
+                            desiredTrigger.getCID()
                     );
                     success = true;
                     // Update the obj in our list
                     desiredTrigger.setContent(response);
                 } else {
-                    // TODO Feedback dass der Trigger nicht mehr gefunden werden konnte weil die letzt eingabe zu lange her ist
+                    sendMessage(update.getMessage().getFrom().getId().toString(),
+                            "<b>Sorry die Eingabe ist zu lange her und nicht mehr im Speicher</b>\n" +
+                                    "<i> - versuch es neu mit </i>/addtrigger");
                 }
             } catch (SQLException e) {
-                // TODO Feedback an user dass der content nicht upgedatet werden konnte
+                sendMessage(update.getMessage().getFrom().getId().toString(),
+                        "<b> Das sollte eigentlich nicht passieren. </b>" +
+                                "\n<i> - Schick mir am besten einen Screenshot per pn.</i>");
                 e.printStackTrace();
             }
             if (success) {
@@ -155,8 +181,7 @@ public class BotController extends TelegramLongPollingBot {
                 if (response.contains(",")) {
                     // Send feedback for using , instead of .
                     sendMessage(update.getMessage().getChatId().toString(),
-                            "<b>Junge</b> ich hab doch gesagt mit <b>Komma</b> und <b>nicht</b> Punkt?!\n" +
-                                    "Alles muss man selber machen. Ich hoffe für dich dass das der einzige Fehler war.");
+                            "<b>Junge</b> ich hab doch gesagt mit <b>Komma</b> und <b>nicht</b> Punkt?!\n");
                     // Swapping our , for .
                     response = response.replace(',', '.');
                 }
@@ -165,8 +190,7 @@ public class BotController extends TelegramLongPollingBot {
                     // Update our Trigger in our database with our desired probability
                     Database.updateTriggerProbabilityByCID(
                             probability,
-                            desiredTrigger.getCID(),
-                            update.getMessage().getFrom().getId()
+                            desiredTrigger.getCID()
                     );
                     // Update the obj in our list
                     desiredTrigger.setProbability(probability);
@@ -176,6 +200,10 @@ public class BotController extends TelegramLongPollingBot {
                                     "\n<i> -</i> <b>Triggerwort: </b><i>" + desiredTrigger.getCommand() +
                                     "\n - </i><b>Wahrscheinlichkeit: </b><i>" + desiredTrigger.getProbability() +
                                     "\n - </i><b>Copypasta: </b><i> " + desiredTrigger.getContent() + "</i>");
+                    // Set FINISHED to 1 indicating that the command is fully added
+                    Database.updateTriggerFinishedByCID(1, desiredTrigger.getCID());
+                    // Delete trigger from triggersInProcess
+                    triggersInProcess.remove(desiredTrigger);
                 } catch (NumberFormatException e) {
                     // Feedback to the user that the Probability could not be added
                     sendMessage(update.getMessage().getChatId().toString(),
@@ -187,13 +215,12 @@ public class BotController extends TelegramLongPollingBot {
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }
-
-                //TODO FINISHED Flag zu m_trigger hinzufuegen wenn der trigger erfolgreich geaddet wurde
                 //TODO regelmäßig alles aus der datenbank löschen wo das FINISHED Flag nicht gesetzt ist
 
             } else {
-                // TODO Feedback dass der Trigger nicht mehr gefunden werden konnte weil die letzt eingabe zu lange her ist
-            }
+                sendMessage(update.getMessage().getFrom().getId().toString(),
+                        "<b>Sorry die Eingabe ist zu lange her und nicht mehr im Speicher</b>\n" +
+                                "<i> - versuch es neu mit /addtrigger</i>");            }
         }
     }
 
@@ -289,6 +316,10 @@ public class BotController extends TelegramLongPollingBot {
             }
         }
         return result;
+    }
+
+    public static void resetTriggersInProcess() {
+        triggersInProcess = new ArrayList<Trigger>();
     }
 
     public String getBotUsername() {
