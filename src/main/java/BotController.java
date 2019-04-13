@@ -6,14 +6,23 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Random;
 import java.util.Timer;
 import java.util.concurrent.TimeUnit;
 
 public class BotController extends TelegramLongPollingBot {
-    private static boolean developerMode = false;
+    private static boolean developerMode = true;
     private static ArrayList<Trigger> triggersInProcess = new ArrayList<Trigger>();
+    private static Trigger[] allTriggers = null;
 
     public BotController() {
+        // Initialize allTrigers
+        try {
+            allTriggers = Database.getTriggers();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
         // Start a Timer task executing every day at 4 am to delete all unfinished Triggers
         Calendar calendar = Calendar.getInstance();
         calendar.set(Calendar.HOUR_OF_DAY, 4);
@@ -21,17 +30,31 @@ public class BotController extends TelegramLongPollingBot {
         calendar.set(Calendar.SECOND, 0);
         calendar.set(Calendar.MILLISECOND, 0);
 
-        Timer time = new Timer(); // Instantiate Timer Object
+        Timer time1 = new Timer(); // Instantiate Timer Object
+        Timer time2 = new Timer();
 
         // Start running the task at 04:00:00, period is set to 24 hours
         // if you want to run the task immediately, set the 2nd parameter to 0
-        time.schedule(new DeleteTask(), calendar.getTime(), TimeUnit.HOURS.toMillis(24));
+        time1.schedule(new DeleteTask(), calendar.getTime(), TimeUnit.HOURS.toMillis(24));
+        // Update our Trigger set every hour
+        time2.schedule(new UpdateTask(), TimeUnit.HOURS.toMillis(1));
     }
 
     public void onUpdateReceived(Update update) {
         // Check whether we are receiving a group message or a private chat message
+        System.out.println(allTriggers.length);
         if (update.getMessage().isGroupMessage() || update.getMessage().isSuperGroupMessage()) {
             // TODO Groupchat functionality
+            for (Trigger trigger : allTriggers) {
+                if (update.getMessage().getText().toLowerCase().contains(trigger.getCommand().toLowerCase())) {
+                    float probability = trigger.getProbability();
+                    if (isProbabilityHit(probability)) {
+                        sendReplyMessage(update.getMessage().getChatId().toString(),
+                                update.getMessage().getMessageId(),
+                                trigger.getContent());
+                    }
+                }
+            }
         } else {
             if (update.hasMessage()) {
                 if (update.getMessage().hasText()) {
@@ -48,7 +71,9 @@ public class BotController extends TelegramLongPollingBot {
                     // If the mysql query succeeded and we got our CommandQueue we only want to continue if it's active (>0)
                     if (currentCommand != null) {
                         // Handle different commands
-                        if (currentCommand.getCommand().equals("addtrigger")) {
+                        if (currentCommand.getCommand().equals("/stop")) {
+
+                        } else if (currentCommand.getCommand().equals("addtrigger")) {
                             handleAddTrigger(currentCommand.getState(), update);
                         }
                     }
@@ -66,9 +91,29 @@ public class BotController extends TelegramLongPollingBot {
         // TODO Add Inline Buttons
     }
 
+    private void listAllCommands(int UserID) {
+        Trigger[] triggers = null;
+        String response = null;
+        try {
+            triggers= Database.getTriggersByOwnerID(UserID);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        if (triggers != null) {
+            response = "<b>Deine Trigger:</b>\n\n";
+            for (Trigger trigger : triggers) {
+                response += "<i> - </i><b>Triggerwort:</b> <i>" + trigger.getCommand() + "</i>\n" +
+                        "<i> - </i><b>Wahrscheinlichkeit:</b> <i>" + trigger.getProbability() + "</i>\n" +
+                        "<i> - </i><b>Copypasta:</b> <i>" + trigger.getContent() + "</i>\n\n";
+            }
+            sendMessage(String.valueOf(UserID), response);
+        } else {
+            sendMessage(String.valueOf(UserID), "<b>Du hast leider noch keine Trigger hinzugefügt.</b>");
+        }
+    }
+
     private void handleAddTrigger(int state, Update update) {
         if (state == 0) {
-            // TODO darum kümmern dass nicht jedes mal solange state == 0 ist der letzte command geschickt wird
             // Initial state
             boolean messageSent = sendMessage(update.getMessage().getChatId().toString(),
                     "<b>Welches wort soll die copypasta triggern?</b>\n<i>- Groß- und Kleinschreibung beachten</i>");
@@ -90,7 +135,7 @@ public class BotController extends TelegramLongPollingBot {
 
                 // Adding our added trigger to our ArrayList for continuing in the next step
                 // Making sure we also get our CID for later on
-                Trigger[] triggers = Database.getTriggers();
+                Trigger[] triggers = Database.getInProcessTriggers();
                 // TODO Rewrite this piece of crap, new sql query etc
                 int CID = -1;
                 for (Trigger t : triggers) {
@@ -101,12 +146,11 @@ public class BotController extends TelegramLongPollingBot {
                 if (CID > 0) {
                     triggersInProcess.add(new Trigger(CID, response, "", 0.0f, update.getMessage().getFrom().getId()));
                 }
-            } catch (java.sql.SQLIntegrityConstraintViolationException e) {
+            } catch (SQLException s) {
                 sendMessage(update.getMessage().getFrom().getId().toString(),
                         "<b> Fehler beim hinzufügen des Triggers </b>\n" +
-                                "<i> - der Trigger existiert schon");
-            } catch (SQLException s) {
-
+                                "<i> - </i> <a href=\"tg://user?id=" + update.getMessage().getFrom().getId()+
+                                "\">Dieser junge Mann</a><i> hat ihn schon hinzugefügt</i>");
             }
             if (success) {
                 // if we succeeded in adding a new Trigger our command chain can proceed
@@ -143,7 +187,7 @@ public class BotController extends TelegramLongPollingBot {
                     desiredTrigger.setContent(response);
                 } else {
                     sendMessage(update.getMessage().getFrom().getId().toString(),
-                            "<b>Sorry die Eingabe ist zu lange her und nicht mehr im Speicher</b>\n" +
+                            "<b>Sorry die Eingabe ist zu lange her</b>\n" +
                                     "<i> - versuch es neu mit </i>/addtrigger");
                 }
             } catch (SQLException e) {
@@ -186,7 +230,7 @@ public class BotController extends TelegramLongPollingBot {
                     response = response.replace(',', '.');
                 }
                 try {
-                     probability = Float.parseFloat(response);
+                    probability = Float.parseFloat(response);
                     // Update our Trigger in our database with our desired probability
                     Database.updateTriggerProbabilityByCID(
                             probability,
@@ -215,13 +259,25 @@ public class BotController extends TelegramLongPollingBot {
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }
-                //TODO regelmäßig alles aus der datenbank löschen wo das FINISHED Flag nicht gesetzt ist
-
             } else {
                 sendMessage(update.getMessage().getFrom().getId().toString(),
                         "<b>Sorry die Eingabe ist zu lange her und nicht mehr im Speicher</b>\n" +
                                 "<i> - versuch es neu mit /addtrigger</i>");            }
         }
+    }
+
+    private boolean sendReplyMessage(String ChatID, int MessageID, String message) {
+        SendMessage sendMessage = new SendMessage()
+                .setChatId(ChatID)
+                .setReplyToMessageId(MessageID)
+                .setParseMode("HTML")
+                .setText(message);
+        try {
+            execute(sendMessage);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+        return true;
     }
 
     private boolean sendMessage(String ChatID, String message) {
@@ -239,49 +295,80 @@ public class BotController extends TelegramLongPollingBot {
 
     private void handleCommandInit(Update update) {
         if (update.getMessage().isCommand()) {
-            if (update.getMessage().getText().equals("/addtrigger")) {
-                try {
-                    // Try adding our command as a new entry to the database
-                    Database.addCommandQueue(
-                            update.getMessage().getFrom().getId(),
-                            update.getMessage().getChatId(),
-                            "addtrigger",
-                            0);
-                } catch (SQLException e) {
-                    // Since our entry already exists we need to decide whether our command just got called again or
-                    // if a different command was called
-                    try {
-                        CommandQueue commandQueue = Database.getCommandQueueByUID(update.getMessage().getFrom().getId());
-                        if (!commandQueue.getCommand().equals("addtrigger")) {
-                            // If our saved command is not the same as the the one our user has triggered
-                            // we have to update the COMMAND entry
-                            Database.updateCommandQueueCommandByIDs(
-                                    update.getMessage().getFrom().getId(),
-                                    update.getMessage().getChatId(),
-                                    "addtrigger"
-                            );
-                        } else {
-                            // Our saved command is the same so we just need to reset our command state
-                            Database.updateCommandQueueStateByIDs(
-                                    update.getMessage().getFrom().getId(),
-                                    update.getMessage().getChatId(),
-                                    0
-                            );
-                        }
-                    } catch (SQLException e1) {
-                        e1.printStackTrace();
-                    }
+            if (update.getMessage().getText().equals("/list")) {
+                listAllCommands(update.getMessage().getFrom().getId());
+            } else if (update.getMessage().getText().equals("/delete")) {
+                sendMessage(update.getMessage().getFrom().getId().toString(),
+                        "<b>Falscher Syntax!</b>\n" +
+                                "<i> - /delete test schreiben um den Trigger 'test' zu löschen</i>");
+            } else if (update.getMessage().getText().startsWith("/delete")) {
+                String triggerToDelete = update.getMessage().getText().substring(7);
+                if (triggerToDelete.charAt(0) == 32) {
+                    triggerToDelete = triggerToDelete.substring(1);
                 }
-            } else if (update.getMessage().getText().equals("/start")) {
                 try {
-                    // If our user has pressed /start we want him to be added to our database
-                    Database.addCommandQueue(
-                            update.getMessage().getFrom().getId(),
-                            update.getMessage().getChatId(),
-                            "start",
-                            0);
+                    Trigger[] triggers = Database.getTriggersByOwnerID(update.getMessage().getFrom().getId());
+                    boolean success = false;
+                    for (Trigger trigger : triggers) {
+                        if (trigger.getCommand().equals(triggerToDelete)) {
+                            Database.deleteTrigger(triggerToDelete);
+                            success = true;
+                            break;
+                        }
+                    }
+
+                    if (success) {
+                        sendMessage(update.getMessage().getFrom().getId().toString(),
+                                "<b>Der Trigger '" + triggerToDelete + "' wurde erfolgreich gelöscht.</b>");
+                    } else {
+                        sendMessage(update.getMessage().getFrom().getId().toString(),
+                                "<b>Fehler beim löschen des Triggers: " + triggerToDelete + "</b>\n" +
+                                        "<i> - entweder du bist nicht der Urheber\n" +
+                                        " - oder der Trigger konnte nicht gefunden werden</i>");
+                    }
                 } catch (SQLException e) {
+                    sendMessage(update.getMessage().getFrom().getId().toString(),
+                            "<b>Fehler beim löschen des Triggers: " + triggerToDelete + "</b>\n" +
+                                    "<i> - schick mir diese Fehlermeldung bitte als screenshot</i>");
                     e.printStackTrace();
+                }
+            }
+
+            try {
+                // Try adding our command as a new entry to the database
+                Database.addCommandQueue(
+                        update.getMessage().getFrom().getId(),
+                        update.getMessage().getChatId(),
+                        update.getMessage().getText(),
+                        0);
+            } catch (SQLException e) {
+                // Since our entry already exists we need to decide whether our command just got called again or
+                // if a different command was called
+                try {
+                    CommandQueue commandQueue = Database.getCommandQueueByUID(update.getMessage().getFrom().getId());
+                    if (!commandQueue.getCommand().equals(update.getMessage().getText())) {
+                        // If our saved command is not the same as the the one our user has triggered
+                        // we have to update the COMMAND entry and set the State to 0
+                        Database.updateCommandQueueCommandByIDs(
+                                update.getMessage().getFrom().getId(),
+                                update.getMessage().getChatId(),
+                                update.getMessage().getText().substring(1)
+                        );
+                        Database.updateCommandQueueStateByIDs(
+                                update.getMessage().getFrom().getId(),
+                                update.getMessage().getChatId(),
+                                0
+                        );
+                    } else {
+                        // Our saved command is the same so we just need to reset our command state
+                        Database.updateCommandQueueStateByIDs(
+                                update.getMessage().getFrom().getId(),
+                                update.getMessage().getChatId(),
+                                0
+                        );
+                    }
+                } catch (SQLException e1) {
+                    e1.printStackTrace();
                 }
             }
         }
@@ -318,8 +405,27 @@ public class BotController extends TelegramLongPollingBot {
         return result;
     }
 
+    private boolean isProbabilityHit(float probability) {
+        probability = probability * 100;
+        Random rand = new Random();
+        int randomNumber = 1 + rand.nextInt(100);
+        if (randomNumber <= probability) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     public static void resetTriggersInProcess() {
         triggersInProcess = new ArrayList<Trigger>();
+    }
+
+    public static void updateTriggers() {
+        try {
+            allTriggers = Database.getTriggers();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     public String getBotUsername() {

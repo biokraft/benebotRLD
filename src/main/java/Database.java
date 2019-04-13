@@ -1,7 +1,4 @@
 import java.sql.*;
-import java.util.Calendar;
-import java.util.Timer;
-import java.util.concurrent.TimeUnit;
 
 public class Database {
     private static final String USERNAME = "dbuser";
@@ -40,17 +37,20 @@ public class Database {
         Connection conn = null;
         PreparedStatement stmt = null;
         boolean rs;
+        if (alteredCommand == null) {
+            return false;
+        }
         try {
             // Connecting to the database and selecting all commands
             conn = DriverManager.getConnection(CONN_STRING, USERNAME, PASSWORD);
             String insert = "UPDATE `m_commandqueue` " +
                             "SET `COMMAND` = ? " +
-                            "WHERE `m_commandqueue`.`UID` = ?" +
+                            "WHERE `m_commandqueue`.`UID` = ? " +
                             "AND `m_commandqueue`.`CID` = ?";
+            stmt = conn.prepareStatement(insert);
             stmt.setString(1, alteredCommand);
             stmt.setInt(2, UserID);
             stmt.setLong(3, ChatID);
-            stmt = conn.prepareStatement(insert);
             rs = stmt.execute();
 
         } catch (SQLException e) {
@@ -120,7 +120,8 @@ public class Database {
                     "SELECT " +
                     "    * " +
                     "FROM m_trigger " +
-                    "WHERE `m_trigger`.`OWNER` = " + OwnerID + "");
+                    "WHERE `m_trigger`.`OWNER` = " + OwnerID + " " +
+                    "AND `m_trigger`.`FINISHED` = 1");
             rs.last();
             triggers = new Trigger[rs.getRow()];
             rs.first();
@@ -334,7 +335,7 @@ public class Database {
     public static boolean deleteTrigger(String command) throws SQLException{
         Connection conn = null;
         Statement stmt = null;
-        boolean rs = false;
+        boolean rs;
         try {
             // Connecting to the database and selecting all commands
             conn = DriverManager.getConnection(CONN_STRING, USERNAME, PASSWORD);
@@ -380,8 +381,8 @@ public class Database {
         return true;
     }
 
-    public static Trigger[] getTriggers() throws SQLException {
-        Trigger[] carray = null;
+    public static Trigger[] getInProcessTriggers() throws SQLException {
+        Trigger[] carray;
         Connection conn = null;
         Statement stmt = null;
         ResultSet rs = null;
@@ -389,7 +390,52 @@ public class Database {
             // Connecting to the database and selecting all commands
             conn = DriverManager.getConnection(CONN_STRING, USERNAME, PASSWORD);
             stmt = conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_READ_ONLY);
-            rs = stmt.executeQuery("SELECT * FROM m_trigger");
+            rs = stmt.executeQuery("SELECT * FROM m_trigger WHERE FINISHED = 0");
+
+            rs.last();
+            carray = new Trigger[rs.getRow()];
+            int loopIndex = 0;
+
+            // Saving every row into a single command object and adding those to our carray
+            rs.first();
+            do {
+                Trigger command = new Trigger(
+                        rs.getInt(1),
+                        rs.getString(2),
+                        rs.getString(3),
+                        rs.getFloat(4),
+                        rs.getInt(5)
+                );
+                carray[loopIndex] = command;
+                loopIndex++;
+            } while (rs.next());
+        } catch (SQLException e) {
+            throw e;
+        } finally {
+            // Closing all resources properly
+            if (rs != null) {
+                rs.close();
+            }
+            if (stmt != null) {
+                stmt.close();
+            }
+            if (conn != null) {
+                conn.close();
+            }
+        }
+        return carray;
+    }
+
+    public static Trigger[] getTriggers() throws SQLException {
+        Trigger[] carray;
+        Connection conn = null;
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            // Connecting to the database and selecting all commands
+            conn = DriverManager.getConnection(CONN_STRING, USERNAME, PASSWORD);
+            stmt = conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_READ_ONLY);
+            rs = stmt.executeQuery("SELECT * FROM m_trigger WHERE FINISHED = 1");
 
             rs.last();
             carray = new Trigger[rs.getRow()];
