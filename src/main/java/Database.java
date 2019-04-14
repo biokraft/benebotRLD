@@ -7,7 +7,47 @@ public class Database {
     private static final String CONN_STRING = "jdbc:mysql://192.168.188.46/benebot";
 
     public static void main(String args[]) throws SQLException {
-        deleteTrigger("abdancen");
+        System.out.println("<i>- </i><b>Triggerwort:</b> <i>schwanger</i>\n" +
+                "<i>- </i><b>Wahrscheinlichkeit:</b> <i>0.5</i>\n" +
+                "<i>- </i><b>Copypasta:</b> <i> Absoluter Traum ist Frau zu schwängern</i>".charAt(118));
+    }
+
+    public static String[] getChangelog() throws SQLException {
+        String changelog[];
+        Connection conn = null;
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            // Connecting to the database and selecting all commands
+            conn = DriverManager.getConnection(CONN_STRING, USERNAME, PASSWORD);
+            stmt = conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_READ_ONLY);
+            rs = stmt.executeQuery("" +
+                    "SELECT " +
+                    "    * " +
+                    "FROM m_changelog ");
+            rs.last();
+            changelog = new String[rs.getRow()];
+            rs.first(); int i = 1;
+            changelog[0] = rs.getString(2);
+            while (rs.next()) {
+                changelog[i] = rs.getString(2);
+                i++;
+            }
+        } catch (SQLException e) {
+            throw e;
+        } finally {
+            // Closing all resources properly
+            if (rs != null) {
+                rs.close();
+            }
+            if (stmt != null) {
+                stmt.close();
+            }
+            if (conn != null) {
+                conn.close();
+            }
+        }
+        return changelog;
     }
 
     public static boolean deleteAllTriggersInProcess() throws SQLException {

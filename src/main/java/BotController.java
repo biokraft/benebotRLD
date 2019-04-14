@@ -11,7 +11,7 @@ import java.util.Timer;
 import java.util.concurrent.TimeUnit;
 
 public class BotController extends TelegramLongPollingBot {
-    private static boolean developerMode = false;
+    private static boolean developerMode = true;
     private static ArrayList<Trigger> triggersInProcess = new ArrayList<Trigger>();
     private static ArrayList<Trigger> allTriggers = new ArrayList<Trigger>();
 
@@ -52,7 +52,13 @@ public class BotController extends TelegramLongPollingBot {
                     String triggerText = trigger.getCommand().toLowerCase();
                     if (updateText.contains(triggerText)) {
                         float probability = trigger.getProbability();
-                        if (isProbabilityHit(probability)) {
+                        if (probability >= 1.0f) {
+                            if (updateText.equals(triggerText)) {
+                                sendReplyMessage(update.getMessage().getChatId().toString(),
+                                        update.getMessage().getMessageId(),
+                                        trigger.getContent());
+                            }
+                        } else if (isProbabilityHit(probability)) {
                             sendReplyMessage(update.getMessage().getChatId().toString(),
                                     update.getMessage().getMessageId(),
                                     trigger.getContent());
@@ -106,13 +112,13 @@ public class BotController extends TelegramLongPollingBot {
             e.printStackTrace();
         }
         if (triggers != null) {
-            response = "<b>Deine Trigger:</b>\n\n";
+            sendMessage(String.valueOf(UserID), "<b>Deine Trigger:</b>");
             for (Trigger trigger : triggers) {
-                response += "<i> - </i><b>Triggerwort:</b> <i>" + trigger.getCommand() + "</i>\n" +
-                        "<i> - </i><b>Wahrscheinlichkeit:</b> <i>" + trigger.getProbability() + "</i>\n" +
-                        "<i> - </i><b>Copypasta:</b> <i>" + trigger.getContent() + "</i>\n\n";
+                sendMessage(String.valueOf(UserID),
+                        "- <b>Triggerwort:</b> <i>" + trigger.getCommand() +
+                        "</i>\n- <b>Wahrscheinlichkeit:</b> <i>" + trigger.getProbability() +
+                        "</i>\n- <b>Copypasta:</b> " + trigger.getContent());
             }
-            sendMessage(String.valueOf(UserID), response);
         } else {
             sendMessage(String.valueOf(UserID), "<b>Du hast leider noch keine Trigger hinzugefügt.</b>");
         }
@@ -341,6 +347,15 @@ public class BotController extends TelegramLongPollingBot {
                     sendMessage(update.getMessage().getFrom().getId().toString(),
                             "<b>Fehler beim löschen des Triggers: " + triggerToDelete + "</b>\n" +
                                     "<i> - schick mir diese Fehlermeldung bitte als screenshot</i>");
+                    e.printStackTrace();
+                }
+            } else if (update.getMessage().getText().equals("/changelog")) {
+                try {
+                    String[] changelog = Database.getChangelog();
+                    for (String text : changelog) {
+                        sendMessage(update.getMessage().getFrom().getId().toString(), text);
+                    }
+                } catch (SQLException e) {
                     e.printStackTrace();
                 }
             }
