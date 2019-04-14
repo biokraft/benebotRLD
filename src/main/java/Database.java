@@ -1,4 +1,5 @@
 import java.sql.*;
+import java.util.ArrayList;
 
 public class Database {
     private static final String USERNAME = "dbuser";
@@ -6,7 +7,7 @@ public class Database {
     private static final String CONN_STRING = "jdbc:mysql://192.168.188.46/benebot";
 
     public static void main(String args[]) throws SQLException {
-        deleteAllTriggersInProcess();
+        deleteTrigger("abdancen");
     }
 
     public static boolean deleteAllTriggersInProcess() throws SQLException {
@@ -120,8 +121,7 @@ public class Database {
                     "SELECT " +
                     "    * " +
                     "FROM m_trigger " +
-                    "WHERE `m_trigger`.`OWNER` = " + OwnerID + " " +
-                    "AND `m_trigger`.`FINISHED` = 1");
+                    "WHERE `m_trigger`.`OWNER` = " + OwnerID + " ");
             rs.last();
             triggers = new Trigger[rs.getRow()];
             rs.first();
@@ -426,8 +426,8 @@ public class Database {
         return carray;
     }
 
-    public static Trigger[] getTriggers() throws SQLException {
-        Trigger[] carray;
+    public static ArrayList<Trigger> getTriggers() throws SQLException {
+        ArrayList<Trigger> triggerList = new ArrayList<Trigger>();
         Connection conn = null;
         Statement stmt = null;
         ResultSet rs = null;
@@ -436,10 +436,6 @@ public class Database {
             conn = DriverManager.getConnection(CONN_STRING, USERNAME, PASSWORD);
             stmt = conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_READ_ONLY);
             rs = stmt.executeQuery("SELECT * FROM m_trigger WHERE FINISHED = 1");
-
-            rs.last();
-            carray = new Trigger[rs.getRow()];
-            int loopIndex = 0;
 
             // Saving every row into a single command object and adding those to our carray
             rs.first();
@@ -451,8 +447,7 @@ public class Database {
                         rs.getFloat(4),
                         rs.getInt(5)
                 );
-                carray[loopIndex] = command;
-                loopIndex++;
+                triggerList.add(command);
             } while (rs.next());
         } catch (SQLException e) {
             throw e;
@@ -468,6 +463,6 @@ public class Database {
                 conn.close();
             }
         }
-        return carray;
+        return triggerList;
     }
 }

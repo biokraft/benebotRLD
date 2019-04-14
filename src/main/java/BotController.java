@@ -11,12 +11,12 @@ import java.util.Timer;
 import java.util.concurrent.TimeUnit;
 
 public class BotController extends TelegramLongPollingBot {
-    private static boolean developerMode = true;
+    private static boolean developerMode = false;
     private static ArrayList<Trigger> triggersInProcess = new ArrayList<Trigger>();
-    private static Trigger[] allTriggers = null;
+    private static ArrayList<Trigger> allTriggers = new ArrayList<Trigger>();
 
     public BotController() {
-        // Initialize allTrigers
+        // Initialize allTriggers
         try {
             allTriggers = Database.getTriggers();
         } catch (SQLException e) {
@@ -42,16 +42,22 @@ public class BotController extends TelegramLongPollingBot {
 
     public void onUpdateReceived(Update update) {
         // Check whether we are receiving a group message or a private chat message
-        System.out.println(allTriggers.length);
         if (update.getMessage().isGroupMessage() || update.getMessage().isSuperGroupMessage()) {
-            // TODO Groupchat functionality
-            for (Trigger trigger : allTriggers) {
-                if (update.getMessage().getText().toLowerCase().contains(trigger.getCommand().toLowerCase())) {
-                    float probability = trigger.getProbability();
-                    if (isProbabilityHit(probability)) {
-                        sendReplyMessage(update.getMessage().getChatId().toString(),
-                                update.getMessage().getMessageId(),
-                                trigger.getContent());
+            if (update.hasMessage() && update.getMessage().hasText()) {
+
+                // TODO Developer specific commands?
+
+                for (Trigger trigger : allTriggers) {
+                    String updateText = update.getMessage().getText().toLowerCase();
+                    String triggerText = trigger.getCommand().toLowerCase();
+                    if (updateText.contains(triggerText)) {
+                        float probability = trigger.getProbability();
+                        if (isProbabilityHit(probability)) {
+                            sendReplyMessage(update.getMessage().getChatId().toString(),
+                                    update.getMessage().getMessageId(),
+                                    trigger.getContent());
+                        }
+                        break;
                     }
                 }
             }
@@ -147,6 +153,7 @@ public class BotController extends TelegramLongPollingBot {
                     triggersInProcess.add(new Trigger(CID, response, "", 0.0f, update.getMessage().getFrom().getId()));
                 }
             } catch (SQLException s) {
+                // TODO href mit passender id versehen vom eigentlichen Besitzer des Triggers
                 sendMessage(update.getMessage().getFrom().getId().toString(),
                         "<b> Fehler beim hinzufügen des Triggers </b>\n" +
                                 "<i> - </i> <a href=\"tg://user?id=" + update.getMessage().getFrom().getId()+
@@ -246,7 +253,8 @@ public class BotController extends TelegramLongPollingBot {
                                     "\n - </i><b>Copypasta: </b><i> " + desiredTrigger.getContent() + "</i>");
                     // Set FINISHED to 1 indicating that the command is fully added
                     Database.updateTriggerFinishedByCID(1, desiredTrigger.getCID());
-                    // Delete trigger from triggersInProcess
+                    // Delete trigger from triggersInProcess and add it to allTriggers as it is finished
+                    allTriggers.add(desiredTrigger);
                     triggersInProcess.remove(desiredTrigger);
                 } catch (NumberFormatException e) {
                     // Feedback to the user that the Probability could not be added
@@ -312,6 +320,9 @@ public class BotController extends TelegramLongPollingBot {
                     for (Trigger trigger : triggers) {
                         if (trigger.getCommand().equals(triggerToDelete)) {
                             Database.deleteTrigger(triggerToDelete);
+                            if (!allTriggers.remove(trigger)) {
+                                triggersInProcess.remove(trigger);
+                            }
                             success = true;
                             break;
                         }
