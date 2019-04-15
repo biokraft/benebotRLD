@@ -10,6 +10,8 @@ import java.util.Random;
 import java.util.Timer;
 import java.util.concurrent.TimeUnit;
 
+//TODO Feature einbauen dass alles an copypasta aufgelistet wird
+
 public class BotController extends TelegramLongPollingBot {
     private static boolean developerMode = false;
     private static ArrayList<Trigger> triggersInProcess = new ArrayList<Trigger>();
@@ -120,6 +122,18 @@ public class BotController extends TelegramLongPollingBot {
             }
         } else {
             sendMessage(String.valueOf(UserID), "<b>Du hast leider noch keine Trigger hinzugefügt.</b>");
+        }
+    }
+
+    private void listAllCopyasta(int UserID) {
+        sendMessage(String.valueOf(UserID), "<b>Jeglich verfügbare copypasta:</b>" +
+                "\n<i> - zu triggern mit copypasta xy</i>");
+        for (Trigger trigger : allTriggers) {
+            if (trigger.getProbability() >= 1.0f) {
+                sendMessage(String.valueOf(UserID),
+                        "- <b>Triggerwort:</b> <i>" + trigger.getCommand() +
+                                "</i>\n- <b>Copypasta:</b> " + trigger.getContent());
+            }
         }
     }
 
@@ -337,6 +351,8 @@ public class BotController extends TelegramLongPollingBot {
         if (update.getMessage().isCommand()) {
             if (update.getMessage().getText().equals("/list")) {
                 listAllCommands(update.getMessage().getFrom().getId());
+            } else if (update.getMessage().getText().equals("/listcp")) {
+                listAllCopyasta(update.getMessage().getFrom().getId());
             } else if (update.getMessage().getText().equals("/delete")) {
                 sendMessage(update.getMessage().getFrom().getId().toString(),
                         "<b>Falscher Syntax!</b>\n" +
