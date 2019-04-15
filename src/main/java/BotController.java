@@ -11,7 +11,7 @@ import java.util.Timer;
 import java.util.concurrent.TimeUnit;
 
 public class BotController extends TelegramLongPollingBot {
-    private static boolean developerMode = true;
+    private static boolean developerMode = false;
     private static ArrayList<Trigger> triggersInProcess = new ArrayList<Trigger>();
     private static ArrayList<Trigger> allTriggers = new ArrayList<Trigger>();
 
@@ -24,18 +24,18 @@ public class BotController extends TelegramLongPollingBot {
         }
 
         // Start a Timer task executing every day at 4 am to delete all unfinished Triggers
-        Calendar calendar = Calendar.getInstance();
-        calendar.set(Calendar.HOUR_OF_DAY, 4);
-        calendar.set(Calendar.MINUTE, 0);
-        calendar.set(Calendar.SECOND, 0);
-        calendar.set(Calendar.MILLISECOND, 0);
+        //Calendar calendar = Calendar.getInstance();
+        //calendar.set(Calendar.HOUR_OF_DAY, 4);
+        //calendar.set(Calendar.MINUTE, 0);
+        //calendar.set(Calendar.SECOND, 0);
+        //calendar.set(Calendar.MILLISECOND, 0);
 
         Timer time1 = new Timer(); // Instantiate Timer Object
         Timer time2 = new Timer();
 
         // Start running the task at 04:00:00, period is set to 24 hours
         // if you want to run the task immediately, set the 2nd parameter to 0
-        time1.schedule(new DeleteTask(), calendar.getTime(), TimeUnit.HOURS.toMillis(24));
+        time1.schedule(new DeleteTask(), TimeUnit.HOURS.toMillis(1));
         // Update our Trigger set every hour
         time2.schedule(new UpdateTask(), TimeUnit.HOURS.toMillis(1));
     }
@@ -54,8 +54,7 @@ public class BotController extends TelegramLongPollingBot {
                         float probability = trigger.getProbability();
                         if (probability >= 1.0f) {
                             if (updateText.equals(triggerText)) {
-                                sendReplyMessage(update.getMessage().getChatId().toString(),
-                                        update.getMessage().getMessageId(),
+                                sendMessage(update.getMessage().getChatId().toString(),
                                         trigger.getContent());
                             }
                         } else if (isProbabilityHit(probability)) {
@@ -128,7 +127,10 @@ public class BotController extends TelegramLongPollingBot {
         if (state == 0) {
             // Initial state
             boolean messageSent = sendMessage(update.getMessage().getChatId().toString(),
-                    "<b>Welches wort soll die copypasta triggern?</b>\n<i>- Groß- und Kleinschreibung beachten</i>");
+                    "<b>Welches wort soll die copypasta triggern?</b>\n" +
+                            "<i>- Groß- und Kleinschreibung ist egal</i>\n" +
+                            "<i>- Bei Copypasta, sprich mit einer Wahrscheinlichkeit von 1 bitte vorne copypasta anfügen." +
+                            " </i><b>Sprich:</b><i> copypasta xyz</i>");
             if (messageSent) {
                 try {
                     Database.updateCommandQueueStateByIDs(update.getMessage().getFrom().getId()
@@ -139,31 +141,35 @@ public class BotController extends TelegramLongPollingBot {
             }
         } else if (state == 1) {
             // The previous user response holds our desired command to update
-            String response = update.getMessage().getText();
+            String response = update.getMessage().getText().toLowerCase();
             boolean success = false;
             try {
                 // Trying to add a new Trigger in the database
                 success = Database.addTrigger(response, "", 0.0f, update.getMessage().getFrom().getId());
 
-                // Adding our added trigger to our ArrayList for continuing in the next step
                 // Making sure we also get our CID for later on
-                Trigger[] triggers = Database.getInProcessTriggers();
-                // TODO Rewrite this piece of crap, new sql query etc
+                Trigger[] triggers = Database.getInProcessTriggersByUID(update.getMessage().getFrom().getId());
                 int CID = -1;
                 for (Trigger t : triggers) {
                     if (t.getCommand().equals(response)) {
                         CID = t.getCID();
+                        break;
                     }
                 }
                 if (CID > 0) {
+                    // Adding our added trigger to our ArrayList for continuing in the next step
                     triggersInProcess.add(new Trigger(CID, response, "", 0.0f, update.getMessage().getFrom().getId()));
                 }
             } catch (SQLException s) {
-                // TODO href mit passender id versehen vom eigentlichen Besitzer des Triggers
-                sendMessage(update.getMessage().getFrom().getId().toString(),
-                        "<b> Fehler beim hinzufügen des Triggers </b>\n" +
-                                "<i> - </i> <a href=\"tg://user?id=" + update.getMessage().getFrom().getId()+
-                                "\">Dieser junge Mann</a><i> hat ihn schon hinzugefügt</i>");
+                try {
+                    int UserID = Database.getUserIDByTriggerword(response);
+                    sendMessage(update.getMessage().getFrom().getId().toString(),
+                            "<b>Fehler beim hinzufügen des Triggers</b>\n" +
+                                    "<i>- </i> <a href=\"tg://user?id=" + UserID +
+                                    "\">Dieser junge Mann</a> <i>hat ihn schon hinzugefügt</i>");
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
             }
             if (success) {
                 // if we succeeded in adding a new Trigger our command chain can proceed
@@ -216,9 +222,12 @@ public class BotController extends TelegramLongPollingBot {
                             , update.getMessage().getChatId(), 3);
                     // Inform the user of the next step
                     sendMessage(update.getMessage().getChatId().toString(),
-                            "<b>Mit welcher Chance soll die copypasta getriggert werden?</b>\n" +
+                            "<b>Bitte Wahrscheinlichkeit für den Trigger angeben</b>\n" +
                                     "<i> - Zahl zwischen [0.00, 1.00]\n" +
-                                    " - Bitte Punkt (.) und kein Komma (,) verwenden</i>");
+                                    " - Bei 1.0 wird der Trigger nur ausgelöst wenn die Nachricht ledigleich aus dem" +
+                                    " Triggerwort besteht und sonst nichts\n" +
+                                    " - Unter 1.0 wird jedes mal wenn die Nachricht das Triggerwort enthält " +
+                                    "mit der angegebenen Wahrscheinlichkeit die Copypasta ausgelöst</i>");
                 } catch (SQLException e) {
                     e.printStackTrace();
                 }
@@ -249,6 +258,14 @@ public class BotController extends TelegramLongPollingBot {
                             probability,
                             desiredTrigger.getCID()
                     );
+                    if (probability >= 1.0f
+                            && !desiredTrigger.getCommand().startsWith("copypasta")
+                            && !desiredTrigger.getCommand().startsWith("cp")) {
+                        Database.updateTriggerCommandByCID("copypasta " + desiredTrigger.getCommand(),
+                                desiredTrigger.getCID());
+                        desiredTrigger.setCommand("copypasta " + desiredTrigger.getCommand());
+                    }
+
                     // Update the obj in our list
                     desiredTrigger.setProbability(probability);
                     // Feedback to the user with the added trigger
@@ -271,12 +288,16 @@ public class BotController extends TelegramLongPollingBot {
                     // Make sure to delete our broken Trigger
                     triggersInProcess.remove(desiredTrigger);
                 } catch (SQLException e) {
+                    sendMessage(update.getMessage().getFrom().getId().toString(),
+                            "<b> Das sollte eigentlich nicht passieren. </b>" +
+                                    "\n<i> - Schick mir am besten einen Screenshot per pn.</i>");
                     e.printStackTrace();
                 }
             } else {
                 sendMessage(update.getMessage().getFrom().getId().toString(),
                         "<b>Sorry die Eingabe ist zu lange her und nicht mehr im Speicher</b>\n" +
-                                "<i> - versuch es neu mit /addtrigger</i>");            }
+                                "<i> - versuch es neu mit /addtrigger</i>");
+            }
         }
     }
 
@@ -287,9 +308,14 @@ public class BotController extends TelegramLongPollingBot {
                 .setParseMode("HTML")
                 .setText(message);
         try {
+            Random random = new Random();
+            int rand = random.nextInt((int) TimeUnit.SECONDS.toMillis(5));
+            Thread.sleep(rand);
             execute(sendMessage);
         } catch (TelegramApiException e) {
             e.printStackTrace();
+        } catch (InterruptedException e1) {
+            e1.printStackTrace();
         }
         return true;
     }
@@ -316,19 +342,17 @@ public class BotController extends TelegramLongPollingBot {
                         "<b>Falscher Syntax!</b>\n" +
                                 "<i> - /delete test schreiben um den Trigger 'test' zu löschen</i>");
             } else if (update.getMessage().getText().startsWith("/delete")) {
-                String triggerToDelete = update.getMessage().getText().substring(7);
-                if (triggerToDelete.charAt(0) == 32) {
-                    triggerToDelete = triggerToDelete.substring(1);
+                String triggerWordToDelete = update.getMessage().getText().substring(7);
+                if (triggerWordToDelete.charAt(0) == 32) {
+                    triggerWordToDelete = triggerWordToDelete.substring(1);
                 }
                 try {
                     Trigger[] triggers = Database.getTriggersByOwnerID(update.getMessage().getFrom().getId());
                     boolean success = false;
                     for (Trigger trigger : triggers) {
-                        if (trigger.getCommand().equals(triggerToDelete)) {
-                            Database.deleteTrigger(triggerToDelete);
-                            if (!allTriggers.remove(trigger)) {
-                                triggersInProcess.remove(trigger);
-                            }
+                        if (trigger.getCommand().equals(triggerWordToDelete)) {
+                            Database.deleteTrigger(triggerWordToDelete);
+                            removeTriggerByCID(trigger.getCID());
                             success = true;
                             break;
                         }
@@ -336,16 +360,16 @@ public class BotController extends TelegramLongPollingBot {
 
                     if (success) {
                         sendMessage(update.getMessage().getFrom().getId().toString(),
-                                "<b>Der Trigger '" + triggerToDelete + "' wurde erfolgreich gelöscht.</b>");
+                                "<b>Der Trigger '" + triggerWordToDelete + "' wurde erfolgreich gelöscht.</b>");
                     } else {
                         sendMessage(update.getMessage().getFrom().getId().toString(),
-                                "<b>Fehler beim löschen des Triggers: " + triggerToDelete + "</b>\n" +
+                                "<b>Fehler beim löschen des Triggers: " + triggerWordToDelete + "</b>\n" +
                                         "<i> - entweder du bist nicht der Urheber\n" +
                                         " - oder der Trigger konnte nicht gefunden werden</i>");
                     }
                 } catch (SQLException e) {
                     sendMessage(update.getMessage().getFrom().getId().toString(),
-                            "<b>Fehler beim löschen des Triggers: " + triggerToDelete + "</b>\n" +
+                            "<b>Fehler beim löschen des Triggers: " + triggerWordToDelete + "</b>\n" +
                                     "<i> - schick mir diese Fehlermeldung bitte als screenshot</i>");
                     e.printStackTrace();
                 }
@@ -451,6 +475,26 @@ public class BotController extends TelegramLongPollingBot {
             allTriggers = Database.getTriggers();
         } catch (SQLException e) {
             e.printStackTrace();
+        }
+    }
+
+    private void removeTriggerByCID(int CID) {
+        // Remove our Trigger from the triggersInProcess list
+        for (int i = 0; i < triggersInProcess.size(); i++) {
+            Trigger t = triggersInProcess.get(i);
+            if (t.getCID() == CID) {
+                triggersInProcess.remove(t);
+                // If we found our trigger to del we can return as this Trigger won't be saved in both lists
+                return;
+            }
+        }
+        // Remove our Trigger from the allTrigger list
+        for (int i = allTriggers.size()-1; i >= 0; i--) {
+            Trigger t = allTriggers.get(i);
+            if (t.getCID() == CID) {
+                allTriggers.remove(t);
+                break;
+            }
         }
     }
 

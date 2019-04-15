@@ -7,9 +7,7 @@ public class Database {
     private static final String CONN_STRING = "jdbc:mysql://192.168.188.46/benebot";
 
     public static void main(String args[]) throws SQLException {
-        System.out.println("<i>- </i><b>Triggerwort:</b> <i>schwanger</i>\n" +
-                "<i>- </i><b>Wahrscheinlichkeit:</b> <i>0.5</i>\n" +
-                "<i>- </i><b>Copypasta:</b> <i> Absoluter Traum ist Frau zu schwängern</i>".charAt(118));
+
     }
 
     public static String[] getChangelog() throws SQLException {
@@ -148,7 +146,40 @@ public class Database {
         return commandQueue;
     }
 
-    public static Trigger[] getTriggersByOwnerID (int OwnerID) throws SQLException {
+    public static int getUserIDByTriggerword(String triggerword) throws SQLException {
+        int UserID;
+        Connection conn = null;
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            // Connecting to the database and selecting all commands
+            conn = DriverManager.getConnection(CONN_STRING, USERNAME, PASSWORD);
+            stmt = conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_READ_ONLY);
+            rs = stmt.executeQuery("" +
+                    "SELECT " +
+                    "    * " +
+                    "FROM m_trigger " +
+                    "WHERE `m_trigger`.`COMMAND` = '" + triggerword.toLowerCase() + "'");
+            rs.first();
+            UserID = rs.getInt(5);
+        } catch (SQLException e) {
+            throw e;
+        } finally {
+            // Closing all resources properly
+            if (rs != null) {
+                rs.close();
+            }
+            if (stmt != null) {
+                stmt.close();
+            }
+            if (conn != null) {
+                conn.close();
+            }
+        }
+        return UserID;
+    }
+
+    public static Trigger[] getTriggersByOwnerID(int OwnerID) throws SQLException {
         Trigger[] triggers;
         Connection conn = null;
         Statement stmt = null;
@@ -241,6 +272,37 @@ public class Database {
                                 "WHERE `m_trigger`.`CID` = ? ";
                 stmt = conn.prepareStatement(insert);
                 stmt.setFloat(1, probability);
+                stmt.setInt(2, CID);
+                rs = stmt.execute();
+            }
+        } catch (SQLException e) {
+            throw e;
+        } finally {
+            // Closing all resources properly
+            if (stmt != null) {
+                stmt.close();
+            }
+            if (conn != null) {
+                conn.close();
+            }
+        }
+        return rs;
+    }
+
+    public static boolean updateTriggerCommandByCID(String copypasta, int CID) throws SQLException {
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        boolean rs = false;
+        try {
+            // Only continue if our trigger is set properly
+            if (CID != -1) {
+                // Connecting to the database and updating our Triggers content
+                conn = DriverManager.getConnection(CONN_STRING, USERNAME, PASSWORD);
+                String insert = "UPDATE `m_trigger` " +
+                        "SET `COMMAND` = ? " +
+                        "WHERE `m_trigger`.`CID` = ?";
+                stmt = conn.prepareStatement(insert);
+                stmt.setString(1, copypasta);
                 stmt.setInt(2, CID);
                 rs = stmt.execute();
             }
@@ -419,6 +481,51 @@ public class Database {
             }
         }
         return true;
+    }
+
+    public static Trigger[] getInProcessTriggersByUID(int UserID) throws SQLException {
+        Trigger[] carray;
+        Connection conn = null;
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            // Connecting to the database and selecting all commands
+            conn = DriverManager.getConnection(CONN_STRING, USERNAME, PASSWORD);
+            stmt = conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_READ_ONLY);
+            rs = stmt.executeQuery("SELECT * FROM m_trigger WHERE FINISHED = 0 AND `m_trigger`.`OWNER` = " + UserID + "  ");
+
+            rs.last();
+            carray = new Trigger[rs.getRow()];
+            int loopIndex = 0;
+
+            // Saving every row into a single command object and adding those to our carray
+            rs.first();
+            do {
+                Trigger command = new Trigger(
+                        rs.getInt(1),
+                        rs.getString(2),
+                        rs.getString(3),
+                        rs.getFloat(4),
+                        rs.getInt(5)
+                );
+                carray[loopIndex] = command;
+                loopIndex++;
+            } while (rs.next());
+        } catch (SQLException e) {
+            throw e;
+        } finally {
+            // Closing all resources properly
+            if (rs != null) {
+                rs.close();
+            }
+            if (stmt != null) {
+                stmt.close();
+            }
+            if (conn != null) {
+                conn.close();
+            }
+        }
+        return carray;
     }
 
     public static Trigger[] getInProcessTriggers() throws SQLException {
