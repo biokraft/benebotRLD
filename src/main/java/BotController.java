@@ -1,16 +1,16 @@
+import gui.ava.html.image.generator.HtmlImageGenerator;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.io.File;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Random;
 import java.util.Timer;
 import java.util.concurrent.TimeUnit;
-
-//TODO Feature einbauen dass alles an copypasta aufgelistet wird
 
 public class BotController extends TelegramLongPollingBot {
     private static boolean developerMode = false;
@@ -47,6 +47,9 @@ public class BotController extends TelegramLongPollingBot {
         if (update.getMessage().isGroupMessage() || update.getMessage().isSuperGroupMessage()) {
             if (update.hasMessage() && update.getMessage().hasText()) {
 
+                if (update.getMessage().getText().startsWith("/listcp")) {
+                    listAllCopyastaToChat(update.getMessage().getChatId().toString());
+                }
                 // TODO Developer specific commands?
 
                 for (Trigger trigger : allTriggers) {
@@ -104,37 +107,119 @@ public class BotController extends TelegramLongPollingBot {
         // TODO Add Inline Buttons
     }
 
-    private void listAllCommands(int UserID) {
+    private void listAllTriggersToChat(String ChatID) {
         Trigger[] triggers = null;
-        String response = null;
         try {
-            triggers= Database.getTriggersByOwnerID(UserID);
+            triggers= Database.getTriggersByOwnerID(Integer.valueOf(ChatID));
         } catch (SQLException e) {
             e.printStackTrace();
         }
         if (triggers != null) {
-            sendMessage(String.valueOf(UserID), "<b>Deine Trigger:</b>");
-            for (Trigger trigger : triggers) {
-                sendMessage(String.valueOf(UserID),
-                        "- <b>Triggerwort:</b> <i>" + trigger.getCommand() +
-                        "</i>\n- <b>Wahrscheinlichkeit:</b> <i>" + trigger.getProbability() +
-                        "</i>\n- <b>Copypasta:</b> " + trigger.getContent());
+            sendMessage(String.valueOf(ChatID), "<b>Deine Trigger:</b>\n" +
+                    "<i> - Bitte geduldig sein. Hab nicht so viel Rechenpower ok</i>");
+            // Specify our html code to render
+            String htmlHead = "" +
+                    "<head>\n" +
+                    "   <meta charset=\"utf-8mb4\">\n" +
+                    "   <style>\n" +
+                    "       td {\n" +
+                    "           border-bottom:1px solid;\n" +
+                    "           border-right:1px solid;\n" +
+                    "           padding:8px;\n" +
+                    "           font-family: 'Comic Sans MS', cursive, sans-serif\n" +
+                    "       }\n" +
+                    "       th {\n" +
+                    "           border-bottom:1px solid;\n" +
+                    "           border-right:1px solid;\n" +
+                    "           padding:8px;\n" +
+                    "           font-family: 'Comic Sans MS', cursive, sans-serif\n" +
+                    "       }\n" +
+                    "   </style>\n" +
+                    "</head>\n" +
+                    "<table width=\"700px\">\n" +
+                    "   <tr>\n" +
+                    "       <th align=\"left\" width=\"15%\">\n" +
+                    "           <b>Triggerwort</b>\n" +
+                    "       </th>\n" +
+                    "       <th align=\"left\" width=\"5%\">\n" +
+                    "           <b>Wahrscheinlichkeit</b>\n" +
+                    "       </th>\n" +
+                    "       <th align=\"left\" width=\"80%\">\n" +
+                    "           <b>Copypasta</b>\n" +
+                    "       </th>\n" +
+                    "   </tr>\n";
+            String html = htmlHead;
+            for (int i = 0; i < triggers.length; i++) {
+                html += "   <tr>\n" +
+                        "       <td width=\"10%\">" + triggers[i].getCommand() + "</td>\n" +
+                        "       <td width=\"5%\">" + triggers[i].getProbability() + "</td>\n" +
+                        "       <td width=\"85%\">" + triggers[i].getContent() + "</td>\n" +
+                        "   </tr>\n";
+                if (i != 0 && i % 19 == 0) {
+                    html += "</table>";
+                    sendHtmlToPhoto(ChatID, html);
+                    html = htmlHead;
+                }
             }
+            html += "</table>";
+            // Send our remaining table to our user as a photo
+            sendHtmlToPhoto(ChatID, html);
+
         } else {
-            sendMessage(String.valueOf(UserID), "<b>Du hast leider noch keine Trigger hinzugefügt.</b>");
+            sendMessage(ChatID, "<b>Du hast leider noch keine Trigger hinzugefügt.</b>");
         }
     }
 
-    private void listAllCopyasta(int UserID) {
-        sendMessage(String.valueOf(UserID), "<b>Jeglich verfügbare copypasta:</b>" +
-                "\n<i> - zu triggern mit copypasta xy</i>");
-        for (Trigger trigger : allTriggers) {
-            if (trigger.getProbability() >= 1.0f) {
-                sendMessage(String.valueOf(UserID),
-                        "- <b>Triggerwort:</b> <i>" + trigger.getCommand() +
-                                "</i>\n- <b>Copypasta:</b> " + trigger.getContent());
+    private void listAllCopyastaToChat(String ChatID) {
+        sendMessage(ChatID, "<b>Jeglich verfügbare copypasta:</b>" +
+                "\n<i> - Zu triggern mit copypasta xy</i>\n" +
+                "<i> - Bitte geduldig sein. Hab nicht so viel Rechenpower ok</i>");
+        // Specify our html code to render
+        String htmlHead = "" +
+                "<head>\n" +
+                "   <meta charset=\"utf-8mb4\">\n" +
+                "   <style>\n" +
+                "       td {\n" +
+                "           border-bottom:1px solid;\n" +
+                "           border-right:1px solid;\n" +
+                "           padding:8px;\n" +
+                "           font-family: 'Comic Sans MS', cursive, sans-serif\n" +
+                "       }\n" +
+                "       th {\n" +
+                "           border-bottom:1px solid;\n" +
+                "           border-right:1px solid;\n" +
+                "           padding:8px;\n" +
+                "           font-family: 'Comic Sans MS', cursive, sans-serif\n" +
+                "       }\n" +
+                "   </style>\n" +
+                "</head>\n" +
+                "<table width=\"700px\">\n" +
+                "   <tr>\n" +
+                "       <th align=\"left\" width=\"10%\">\n" +
+                "           <b>Triggerwort</b>\n" +
+                "       </th>\n" +
+                "       <th align=\"left\" width=\"85%\">\n" +
+                "           <b>Copypasta</b>\n" +
+                "       </th>\n" +
+                "   </tr>\n";
+        String html = htmlHead; int z = 0;
+        for (int i = 0; i < allTriggers.size(); i++) {
+            if (allTriggers.get(i).getProbability() >= 1.0f) {
+                html += "   <tr>\n" +
+                        "       <td width=\"15%\">" + allTriggers.get(i).getCommand() + "</td>\n" +
+                        "       <td width=\"85%\">" + allTriggers.get(i).getContent() + "</td>\n" +
+                        "   </tr>\n";
+                if (z != 0 && z % 11 == 0) {
+                    html += "</table>";
+                    sendHtmlToPhoto(ChatID, html);
+                    html = htmlHead;
+                }
+                z++;
             }
         }
+        html += "</table>";
+        // Send our remaining table as photo
+        sendHtmlToPhoto(ChatID, html);
     }
 
     private void handleAddTrigger(int state, Update update) {
@@ -347,12 +432,35 @@ public class BotController extends TelegramLongPollingBot {
         return true;
     }
 
+    private void sendHtmlToPhoto(String ChatID, String html) {
+        File photo = new File("list.png");
+        // Start HtmlImageGenerator and save our respective file
+        HtmlImageGenerator imageGenerator = new HtmlImageGenerator();
+        imageGenerator.loadHtml(html);
+        imageGenerator.saveAsImage(photo);
+
+        // Send our generated table image to our user
+        sendPhoto(String.valueOf(ChatID), photo);
+    }
+
+    private boolean sendPhoto(String ChatID, File photo) {
+        SendPhoto sendMessage = new SendPhoto()
+                .setChatId(ChatID)
+                .setPhoto(photo);
+        try {
+            execute(sendMessage);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+        return true;
+    }
+
     private void handleCommandInit(Update update) {
         if (update.getMessage().isCommand()) {
             if (update.getMessage().getText().equals("/list")) {
-                listAllCommands(update.getMessage().getFrom().getId());
+                listAllTriggersToChat(update.getMessage().getFrom().getId().toString());
             } else if (update.getMessage().getText().equals("/listcp")) {
-                listAllCopyasta(update.getMessage().getFrom().getId());
+                listAllCopyastaToChat(update.getMessage().getFrom().getId().toString());
             } else if (update.getMessage().getText().equals("/delete")) {
                 sendMessage(update.getMessage().getFrom().getId().toString(),
                         "<b>Falscher Syntax!</b>\n" +
