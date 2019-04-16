@@ -148,22 +148,26 @@ public class BotController extends TelegramLongPollingBot {
                     "           <b>Copypasta</b>\n" +
                     "       </th>\n" +
                     "   </tr>\n";
-            String html = htmlHead;
+            String html = htmlHead; boolean hasRest = true;
             for (int i = 0; i < triggers.length; i++) {
+                hasRest = true;
                 html += "   <tr>\n" +
                         "       <td width=\"10%\">" + triggers[i].getCommand() + "</td>\n" +
                         "       <td width=\"5%\">" + triggers[i].getProbability() + "</td>\n" +
                         "       <td width=\"85%\">" + triggers[i].getContent() + "</td>\n" +
                         "   </tr>\n";
-                if (i != 0 && i % 19 == 0) {
+                if (i != 0 && (i+1) % 5 == 0) {
                     html += "</table>";
                     sendHtmlToPhoto(ChatID, html);
                     html = htmlHead;
+                    hasRest = false;
                 }
             }
-            html += "</table>";
-            // Send our remaining table to our user as a photo
-            sendHtmlToPhoto(ChatID, html);
+            if (hasRest) {
+                html += "</table>";
+                // Send our remaining table to our user as a photo
+                sendHtmlToPhoto(ChatID, html);
+            }
 
         } else {
             sendMessage(ChatID, "<b>Du hast leider noch keine Trigger hinzugefügt.</b>");
@@ -171,7 +175,7 @@ public class BotController extends TelegramLongPollingBot {
     }
 
     private void listAllCopyastaToChat(String ChatID) {
-        sendMessage(ChatID, "<b>Jeglich verfügbare copypasta:</b>" +
+        sendMessage(ChatID, "<b>Jegliche verfügbare copypasta:</b>" +
                 "\n<i> - Zu triggern mit copypasta xy</i>\n" +
                 "<i> - Bitte geduldig sein. Hab nicht so viel Rechenpower ok</i>");
         // Specify our html code to render
@@ -202,24 +206,28 @@ public class BotController extends TelegramLongPollingBot {
                 "           <b>Copypasta</b>\n" +
                 "       </th>\n" +
                 "   </tr>\n";
-        String html = htmlHead; int z = 0;
+        String html = htmlHead; int z = 0; boolean hasRest = true;
         for (int i = 0; i < allTriggers.size(); i++) {
             if (allTriggers.get(i).getProbability() >= 1.0f) {
+                hasRest = true;
                 html += "   <tr>\n" +
                         "       <td width=\"15%\">" + allTriggers.get(i).getCommand() + "</td>\n" +
                         "       <td width=\"85%\">" + allTriggers.get(i).getContent() + "</td>\n" +
                         "   </tr>\n";
-                if (z != 0 && z % 11 == 0) {
+                if (z != 0 && (z+1) % 5 == 0) {
                     html += "</table>";
                     sendHtmlToPhoto(ChatID, html);
                     html = htmlHead;
+                    hasRest = false;
                 }
                 z++;
             }
         }
-        html += "</table>";
-        // Send our remaining table as photo
-        sendHtmlToPhoto(ChatID, html);
+        if (hasRest) {
+            html += "</table>";
+            // Send our remaining table as photo
+            sendHtmlToPhoto(ChatID, html);
+        }
     }
 
     private void handleAddTrigger(int state, Update update) {
