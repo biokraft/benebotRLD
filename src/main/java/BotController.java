@@ -73,7 +73,7 @@ public class BotController extends TelegramLongPollingBot {
             }
         } else {
             if (update.hasMessage()) {
-                if (update.getMessage().hasText()) {
+                if (update.getMessage().hasText() && update.getMessage().getFrom().getId() != 332328111) {
                     addNewUsersToDatabase(update);
                     handleCommandInit(update);
 
