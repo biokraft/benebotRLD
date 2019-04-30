@@ -528,51 +528,6 @@ public class Database {
         return carray;
     }
 
-    public static Trigger[] getInProcessTriggers() throws SQLException {
-        Trigger[] carray;
-        Connection conn = null;
-        Statement stmt = null;
-        ResultSet rs = null;
-        try {
-            // Connecting to the database and selecting all commands
-            conn = DriverManager.getConnection(CONN_STRING, USERNAME, PASSWORD);
-            stmt = conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_READ_ONLY);
-            rs = stmt.executeQuery("SELECT * FROM m_trigger WHERE FINISHED = 0");
-
-            rs.last();
-            carray = new Trigger[rs.getRow()];
-            int loopIndex = 0;
-
-            // Saving every row into a single command object and adding those to our carray
-            rs.first();
-            do {
-                Trigger command = new Trigger(
-                        rs.getInt(1),
-                        rs.getString(2),
-                        rs.getString(3),
-                        rs.getFloat(4),
-                        rs.getInt(5)
-                );
-                carray[loopIndex] = command;
-                loopIndex++;
-            } while (rs.next());
-        } catch (SQLException e) {
-            throw e;
-        } finally {
-            // Closing all resources properly
-            if (rs != null) {
-                rs.close();
-            }
-            if (stmt != null) {
-                stmt.close();
-            }
-            if (conn != null) {
-                conn.close();
-            }
-        }
-        return carray;
-    }
-
     public static ArrayList<Trigger> getTriggers() throws SQLException {
         ArrayList<Trigger> triggerList = new ArrayList<Trigger>();
         Connection conn = null;
@@ -612,4 +567,45 @@ public class Database {
         }
         return triggerList;
     }
+
+    public static ArrayList<User> getUsers() throws SQLException {
+        ArrayList<User> userList = new ArrayList<User>();
+        Connection conn = null;
+        Statement stmt = null;
+        ResultSet rs = null;
+        try {
+            // Connecting to the database and selecting all commands
+            conn = DriverManager.getConnection(CONN_STRING, USERNAME, PASSWORD);
+            stmt = conn.createStatement(ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_READ_ONLY);
+            rs = stmt.executeQuery("SELECT * FROM m_users");
+
+            // Saving every row into a single command object and adding those to our carray
+            rs.first();
+            do {
+                User user = new User(
+                        rs.getInt(1),
+                        rs.getString(2),
+                        rs.getString(3),
+                        rs.getString(4),
+                        rs.getLong(5)
+                );
+                userList.add(user);
+            } while (rs.next());
+        } catch (SQLException e) {
+            throw e;
+        } finally {
+            // Closing all resources properly
+            if (rs != null) {
+                rs.close();
+            }
+            if (stmt != null) {
+                stmt.close();
+            }
+            if (conn != null) {
+                conn.close();
+            }
+        }
+        return userList;
+    }
+
 }

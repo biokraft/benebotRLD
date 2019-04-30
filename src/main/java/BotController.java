@@ -13,7 +13,7 @@ import java.util.Timer;
 import java.util.concurrent.TimeUnit;
 
 public class BotController extends TelegramLongPollingBot {
-    private static boolean developerMode = false;
+    private static boolean developerMode = true;
     private static ArrayList<Trigger> triggersInProcess = new ArrayList<Trigger>();
     private static ArrayList<Trigger> allTriggers = new ArrayList<Trigger>();
 

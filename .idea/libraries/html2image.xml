@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="html2image">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/libs/html2image.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
