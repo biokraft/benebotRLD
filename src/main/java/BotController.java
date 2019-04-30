@@ -5,11 +5,11 @@ import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.io.File;
+import java.io.*;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Random;
-import java.util.Timer;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 public class BotController extends TelegramLongPollingBot {
@@ -45,24 +45,31 @@ public class BotController extends TelegramLongPollingBot {
     public void onUpdateReceived(Update update) {
         // Check whether we are receiving a group message or a private chat message
         if (update.getMessage().isGroupMessage() || update.getMessage().isSuperGroupMessage()) {
+            // Mandatory check if we received a message with text
             if (update.hasMessage() && update.getMessage().hasText()) {
-
+                // listcp functionality
                 if (update.getMessage().getText().startsWith("/listcp")) {
                     listAllCopyastaToChat(update.getMessage().getChatId().toString());
                 }
                 // TODO Developer specific commands?
-
+                // Checking for triggerwords in our received message
                 for (Trigger trigger : allTriggers) {
-                    String updateText = update.getMessage().getText().toLowerCase();
+                    // Get our current triggers content/text and our messageText
+                    String messageText = update.getMessage().getText().toLowerCase();
                     String triggerText = trigger.getCommand().toLowerCase();
-                    if (updateText.contains(triggerText)) {
-                        float probability = trigger.getProbability();
-                        if (probability >= 1.0f) {
-                            if (updateText.equals(triggerText)) {
+                    if (messageText.contains(triggerText)) {
+                        float triggerProbability = trigger.getProbability();
+                        // If our probability is >= 1.0 it will be handled as a copypasta
+                        // meaning we just send the copypasta without replyMarkup
+                        if (triggerProbability >= 1.0f) {
+                            if (messageText.equals(triggerText)) {
+                                this.logLn(trigger.getCommand() + " was triggered successfully in " + update.getMessage().getChatId());
                                 sendMessage(update.getMessage().getChatId().toString(),
                                         trigger.getContent());
                             }
-                        } else if (isProbabilityHit(probability)) {
+                        // If our probability is > 1.0 we'll let the dice decide
+                        } else if (isProbabilityHit(triggerProbability)) {
+                            this.logLn(trigger.getCommand() + " was pasted successfully in " + update.getMessage().getChatId());
                             sendReplyMessage(update.getMessage().getChatId().toString(),
                                     update.getMessage().getMessageId(),
                                     trigger.getContent());
@@ -72,6 +79,7 @@ public class BotController extends TelegramLongPollingBot {
                 }
             }
         } else {
+            // This scope only applies to private chats with this bot
             if (update.hasMessage()) {
                 if (update.getMessage().hasText() && update.getMessage().getFrom().getId() != 332328111) {
                     addNewUsersToDatabase(update);
@@ -86,6 +94,7 @@ public class BotController extends TelegramLongPollingBot {
                     }
                     // If the mysql query succeeded and we got our CommandQueue we only want to continue if it's active (>0)
                     if (currentCommand != null) {
+                        this.logLn( update.getMessage().getText()+ " was issued by " + update.getMessage().getFrom().getFirstName() + " (" + update.getMessage().getFrom().getId() + ")");
                         // Handle different commands
                         if (currentCommand.getCommand().equals("/stop")) {
 
@@ -108,6 +117,7 @@ public class BotController extends TelegramLongPollingBot {
     }
 
     private void listAllTriggersToChat(String ChatID) {
+        this.logLn("Listing all Triggers to " + ChatID + "...");
         Trigger[] triggers = null;
         try {
             triggers= Database.getTriggersByOwnerID(Integer.valueOf(ChatID));
@@ -168,13 +178,15 @@ public class BotController extends TelegramLongPollingBot {
                 // Send our remaining table to our user as a photo
                 sendHtmlToPhoto(ChatID, html);
             }
-
+            this.logLn("Triggers successfully listed to " + ChatID);
         } else {
             sendMessage(ChatID, "<b>Du hast leider noch keine Trigger hinzugefügt.</b>");
+            this.logLn("Could not list any triggers for " + ChatID);
         }
     }
 
     private void listAllCopyastaToChat(String ChatID) {
+        this.logLn("Listing all Copypasta to " + ChatID);
         sendMessage(ChatID, "<b>Jegliche verfügbare copypasta:</b>" +
                 "\n<i> - Zu triggern mit copypasta xy</i>\n" +
                 "<i> - Bitte geduldig sein. Hab nicht so viel Rechenpower ok</i>");
@@ -383,6 +395,9 @@ public class BotController extends TelegramLongPollingBot {
                                     "\n - </i><b>Copypasta: </b><i> " + desiredTrigger.getContent() + "</i>");
                     // Set FINISHED to 1 indicating that the command is fully added
                     Database.updateTriggerFinishedByCID(1, desiredTrigger.getCID());
+                    // Log it
+                    this.logLn(desiredTrigger.getCommand() + " was successfully added as a new Trigger by " +
+                            update.getMessage().getFrom().getFirstName() + " (" + update.getMessage().getFrom().getId() + ")");
                     // Delete trigger from triggersInProcess and add it to allTriggers as it is finished
                     allTriggers.add(desiredTrigger);
                     triggersInProcess.remove(desiredTrigger);
@@ -465,15 +480,19 @@ public class BotController extends TelegramLongPollingBot {
 
     private void handleCommandInit(Update update) {
         if (update.getMessage().isCommand()) {
+            // In this scope we reply to certain commands
             if (update.getMessage().getText().equals("/list")) {
                 listAllTriggersToChat(update.getMessage().getFrom().getId().toString());
-            } else if (update.getMessage().getText().equals("/listcp")) {
+            }
+            else if (update.getMessage().getText().equals("/listcp")) {
                 listAllCopyastaToChat(update.getMessage().getFrom().getId().toString());
-            } else if (update.getMessage().getText().equals("/delete")) {
+            }
+            else if (update.getMessage().getText().equals("/delete")) {
                 sendMessage(update.getMessage().getFrom().getId().toString(),
                         "<b>Falscher Syntax!</b>\n" +
                                 "<i> - /delete test schreiben um den Trigger 'test' zu löschen</i>");
-            } else if (update.getMessage().getText().startsWith("/delete")) {
+            }
+            else if (update.getMessage().getText().startsWith("/delete")) {
                 String triggerWordToDelete = update.getMessage().getText().substring(7);
                 if (triggerWordToDelete.charAt(0) == 32) {
                     triggerWordToDelete = triggerWordToDelete.substring(1);
@@ -505,7 +524,8 @@ public class BotController extends TelegramLongPollingBot {
                                     "<i> - schick mir diese Fehlermeldung bitte als screenshot</i>");
                     e.printStackTrace();
                 }
-            } else if (update.getMessage().getText().equals("/changelog")) {
+            }
+            else if (update.getMessage().getText().equals("/changelog")) {
                 try {
                     String[] changelog = Database.getChangelog();
                     for (String text : changelog) {
@@ -567,9 +587,10 @@ public class BotController extends TelegramLongPollingBot {
 
             try {
                 Database.addUser(UserID, username, firstName, lastName);
+                this.logLn(firstName + " (" + UserID + ") "+ " started talking to Benebot");
             } catch (SQLException e) {
                 System.out.println(update.getMessage().getFrom().getFirstName()
-                        + "[" + update.getMessage().getFrom().getId() + "] is already part of the databse");
+                        + "[" + update.getMessage().getFrom().getId() + "] is already part of the database");
             }
 
             sendMessage(update.getMessage().getChatId().toString(),
@@ -642,6 +663,40 @@ public class BotController extends TelegramLongPollingBot {
         }
     }
 
-    // TODO Write method for printing statements in log with current time
+    private void logLn(String logMessage) {
+        String prefix = getDateWithTime();
+        File file = new File("currentLog.txt");
+
+        // If our logfile does not exist yet we need to create it
+        if (!file.exists()) {
+            try {
+                file.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        // Append our logMessage to our logLn
+        try {
+            BufferedWriter out = new BufferedWriter(new FileWriter("currentLog.txt", true));
+            out.append(prefix + " " +  logMessage + "\n");
+            out.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String getDateWithTime() {
+        Calendar cal = Calendar.getInstance();
+        Date date = cal.getTime();
+
+        DateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy']['HH:mm");
+
+        String formattedDate = dateFormat.format(date);
+
+        return "[LOG][" + formattedDate + "]";
+    }
+    // TODO Write method for printing statements in logLn with current time
     // TODO Add this method in every try catch block
+    // TODO create new TimerTask for renaming or logLn.txt daily
 }

@@ -1,5 +1,9 @@
-import java.sql.*;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.sql.*;
 
 public class Database {
     private static final String USERNAME = "dbuser";
@@ -7,7 +11,14 @@ public class Database {
     private static final String CONN_STRING = "jdbc:mysql://192.168.188.46/benebot";
 
     public static void main(String args[]) throws SQLException {
+        Calendar cal = Calendar.getInstance();
+        Date date = cal.getTime();
 
+        DateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy'-'HH:mm");
+
+        String formattedDate = dateFormat.format(date);
+
+        System.out.println("[LOG][" + formattedDate + "]");
     }
 
     public static String[] getChangelog() throws SQLException {
