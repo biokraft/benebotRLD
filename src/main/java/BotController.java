@@ -50,6 +50,7 @@ public class BotController extends TelegramLongPollingBot {
                 // listcp functionality
                 if (update.getMessage().getText().startsWith("/listcp")) {
                     listAllCopyastaToChat(update.getMessage().getChatId().toString());
+                    this.logLn("All copypasta requested by " + update.getMessage().getFrom().getFirstName() + " (" + update.getMessage().getFrom().getId());
                 }
                 // TODO Developer specific commands?
                 // Checking for triggerwords in our received message
@@ -96,9 +97,7 @@ public class BotController extends TelegramLongPollingBot {
                     if (currentCommand != null) {
                         this.logLn( update.getMessage().getText()+ " was issued by " + update.getMessage().getFrom().getFirstName() + " (" + update.getMessage().getFrom().getId() + ")");
                         // Handle different commands
-                        if (currentCommand.getCommand().equals("/stop")) {
-
-                        } else if (currentCommand.getCommand().equals("addtrigger")) {
+                        if (currentCommand.getCommand().equals("addtrigger")) {
                             handleAddTrigger(currentCommand.getState(), update);
                         }
                     }
@@ -676,7 +675,7 @@ public class BotController extends TelegramLongPollingBot {
             }
         }
 
-        // Append our logMessage to our logLn
+        // Append our logMessage to our log
         try {
             BufferedWriter out = new BufferedWriter(new FileWriter("currentLog.txt", true));
             out.append(prefix + " " +  logMessage + "\n");
